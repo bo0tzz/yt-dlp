@@ -3,6 +3,7 @@ import itertools
 import json
 import random
 import re
+import urllib.parse
 
 from .common import InfoExtractor
 from ..compat import (
@@ -517,20 +518,15 @@ class TwitchVodIE(TwitchBaseIE):
         video = self._download_info(vod_id)
         info = self._extract_info_gql(video, vod_id)
         access_token = self._download_access_token(vod_id, 'video', 'id')
-
-        formats = self._extract_m3u8_formats(
-            '%s/vod/%s.m3u8?%s' % (
-                self._USHER_BASE, vod_id,
-                compat_urllib_parse_urlencode({
-                    'allow_source': 'true',
-                    'allow_audio_only': 'true',
-                    'allow_spectre': 'true',
-                    'player': 'twitchweb',
-                    'playlist_include_framerate': 'true',
-                    'nauth': access_token['value'],
-                    'nauthsig': access_token['signature'],
-                })),
-            vod_id, 'mp4', entry_protocol='m3u8_native')
+        
+        previewURL = video.get('storyboard')
+        parsedURL = urllib.parse.urlparse(previewURL)
+        pathComponents = parsedURL.path.split('/')[:2]
+        pathComponents += ['chunked', 'index-dvr.m3u8']
+        vodURL = parsedURL._replace(path='/'.join(pathComponents))
+        m3u8_url = urllib.parse.urlunparse(vodURL)
+        
+        formats = self._extract_m3u8_formats(m3u8_url, vod_id, 'mp4', entry_protocol='m3u8_native')
 
         formats.extend(self._extract_storyboard(vod_id, video.get('storyboard'), info.get('duration')))
 
